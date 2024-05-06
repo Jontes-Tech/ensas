@@ -1,23 +1,26 @@
 import express from 'express'
 import * as Minio from 'minio'
 import sharp from 'sharp'
+import {v4} from "uuid"
 
 const app = express()
 
 const minioClient = new Minio.Client({
-  endPoint: '10.89.0.2',
-  port: 9000,
-  useSSL: false,
+  endPoint: process.env.S3_ENDPOINT || 'localhost',
+  port: parseInt(process.env.S3_PORT || '9000'),
+  useSSL: process.env.S3_USE_SSL === 'true',
   // Very secure credentials 😎
-  accessKey: 'LjwAHpsnPjgkZY2BVn6H',
-  secretKey: 'smD2H1WhVdMWgm8IyM47eXah2T1HNwR7mTA8Gnvx',
+  accessKey: process.env.S3_ACCESS || '',
+  secretKey: process.env.S3_SECRET || '',
 })
 
-const sizes = [128,256]
+const sizes = [64,256]
 
-const resizeAndUpload = (imageBuffer: ArrayBuffer, fileURL: string) => {
+const resizeAndUpload = (imageBuffer: ArrayBuffer, fileURL: string, correlationID: string) => {
   sizes.forEach(async (size) => {
-    const image = await sharp(imageBuffer).resize(size, size).webp().toBuffer()
+    const image = await sharp(imageBuffer, {
+      animated: true
+    }).resize(size, size).webp().toBuffer()
 
     await minioClient.putObject('ens-avatar-' + size, encodeURIComponent(fileURL), image, image.length, {
       'Content-Type': 'image/webp'
@@ -25,14 +28,17 @@ const resizeAndUpload = (imageBuffer: ArrayBuffer, fileURL: string) => {
   })
 }
 
-const getAvatarURL = async (name: string) => {
+const getAvatarURL = async (name: string, correlationID: string) => {
+  const start = performance.now()
   const response = await fetch("https://enstate.rs/n/" + name)
   const data = await response.json()
+  console.log(`enstate (${correlationID}): ${performance.now() - start}ms`)
   return (data.avatar || "").toString()
 }
 
 app.get('/:size/:image.webp', async (req, res) => {
-  console.log('Requesting image', req.params.image, 'with size', req.params.size)
+  const correlationID = v4()  
+
   if (!sizes.includes(parseInt(req.params.size))) {
     res.json({
       error: 'Invalid size',
@@ -41,28 +47,36 @@ app.get('/:size/:image.webp', async (req, res) => {
 
   const bucket = 'ens-avatar-' + req.params.size
 
-  const fileURL = await getAvatarURL(req.params.image)
+  const fileURL = await getAvatarURL(req.params.image, correlationID)
 
   if (!fileURL) {
-    res.json({
-      error: 'Invalid ENS name',
-    })
+    res.setHeader('Content-Type', 'image/svg+xml')
+    res.send(`<?xml version="1.0" standalone="no"?>
+    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" height="${req.params.size}px" width="${req.params.size}px">
+      <defs>
+        <linearGradient id="0" x1="0.66" y1="0.03" x2="0.34" y2="0.97">
+          <stop offset="1%" stop-color="#5298ff"/>
+          <stop offset="51%" stop-color="#5298ff"/>
+          <stop offset="100%" stop-color="#5298ff"/>
+        </linearGradient>
+      </defs>
+      <rect fill="url(#0)" height="100%" width="100%"/>
+    </svg>`)
+  return
   }
-
-  res.setHeader("X-Cache", "HIT")
 
   let arrayBuffer: ArrayBuffer | undefined
 
   const fileStream = await minioClient.getObject(bucket, encodeURIComponent(fileURL)).catch(async (e) => {
     if (e.code === 'NoSuchKey') {
-      res.setHeader("X-Cache", "MISS")
-      console.log('File not found, downloading...')
-      const response = await fetch(fileURL)
-      
-      arrayBuffer = await response.arrayBuffer()
+      const preFetch = performance.now()
+      const response = await fetch("fileURL")
+      console.log(`image fetch (${correlationID}): ${performance.now() - preFetch}ms`)
 
-      // Just create a bloody stream
-      return await sharp(arrayBuffer).resize(parseInt(req.params.size), parseInt(req.params.size)).webp().toBuffer()
+      arrayBuffer = await response.arrayBuffer()
+      return await sharp(arrayBuffer, {
+        animated: true
+      }).resize(parseInt(req.params.size), parseInt(req.params.size)).webp().toBuffer()
     }
   })
 
@@ -75,15 +89,18 @@ app.get('/:size/:image.webp', async (req, res) => {
   res.setHeader('Content-Type', 'image/webp')
   res.setHeader('Cache-Control', 'public, max-age=604800')
 
-  // Check if it's a buffer or a stream
   if (Buffer.isBuffer(fileStream)) {
+    res.setHeader("X-Cache", "MISS")
+    console.log(`cache miss (${correlationID}): ${req.params.image}`)
     res.send(fileStream)
   } else if(fileStream) {
+    res.setHeader("X-Cache", "HIT")
+    console.log(`cache hit (${correlationID}): ${req.params.image}`)
     fileStream.pipe(res)
   }
 
   if (arrayBuffer) {
-    resizeAndUpload(arrayBuffer, fileURL)
+    resizeAndUpload(arrayBuffer, fileURL, correlationID)
   }
 })
 
