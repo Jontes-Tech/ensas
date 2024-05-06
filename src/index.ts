@@ -29,8 +29,8 @@ const resizeAndUpload = (
 			.toBuffer();
 
 		await minioClient.putObject(
-			`ens-avatar-${size}`,
-			encodeURIComponent(fileURL),
+			process.env.S3_BUCKET || "ens-avatar",
+			size+"/"+encodeURIComponent(fileURL),
 			image,
 			image.length,
 			{
@@ -58,7 +58,9 @@ app.get("/:size/:image.webp", async (req, res) => {
 		});
 	}
 
-	const bucket = `${process.env.BUCKET_PREFIX}-${req.params.size}`;
+	const bucket = process.env.S3_BUCKET || "ens-avatar";
+
+	console.log(bucket)
 
 	const fileURL = await getAvatarURL(req.params.image, correlationID);
 
@@ -82,10 +84,9 @@ app.get("/:size/:image.webp", async (req, res) => {
 
 	let arrayBuffer: ArrayBuffer | undefined;
 	const fileStream = await minioClient
-		.getObject(bucket, encodeURIComponent(fileURL))
+		.getObject(bucket, req.params.size+"/"+encodeURIComponent(fileURL))
 		.catch(async (e) => {
 			if (e.code === "NoSuchKey") {
-				console.log(`cache miss (${correlationID}): ${req.params.image}`);
 				const preFetch = performance.now();
 				const response = await fetch(fileURL);
 				console.log(
