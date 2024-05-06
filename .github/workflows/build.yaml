@@ -28,4 +28,4 @@ jobs:
          context: .
          file: ./Dockerfile
          push: true
-         tags: ghcr.io/Jontes-Tech/ensas:latest
+         tags: ghcr.io/jontes-tech/ensas:latest
