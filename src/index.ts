@@ -94,6 +94,13 @@ app.get("/:size/:image.webp", async (req, res) => {
 				);
 
 				arrayBuffer = await response.arrayBuffer();
+
+				if (!arrayBuffer) {
+					res.json({
+						error: "File not found",
+					});
+				}
+
 				return await sharp(arrayBuffer, {
 					animated: true,
 				})
