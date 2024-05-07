@@ -6,11 +6,11 @@ import { v4 } from "uuid";
 const app = express();
 
 const minioClient = new Minio.Client({
-	endPoint: process.env.S3_ENDPOINT || "localhost",
-	port: Number.parseInt(process.env.S3_PORT || "9000"),
-	useSSL: process.env.S3_USE_SSL === "true",
-	accessKey: process.env.S3_ACCESS || "",
-	secretKey: process.env.S3_SECRET || "",
+	endPoint: process.env.BUCKET_HOST || "localhost",
+	port: Number.parseInt(process.env.BUCKET_PORT || "9000"),
+	useSSL: process.env.BUCKET_USE_SSL === "true",
+	accessKey: process.env.AWS_ACCESS_KEY_ID || "",
+	secretKey: process.env.AWS_SECRET_ACCESS_KEY || "",
 });
 
 const sizes = [64, 128, 256];
@@ -58,7 +58,7 @@ app.get("/:size/:image.webp", async (req, res) => {
 		});
 	}
 
-	const bucket = process.env.S3_BUCKET || "ens-avatar";
+	const bucket = process.env.BUCKET_NAME || "ens-avatar";
 
 	console.log(bucket)
 
