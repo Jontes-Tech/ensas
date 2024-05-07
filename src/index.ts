@@ -43,10 +43,16 @@ const resizeAndUpload = (
 
 const getAvatarURL = async (name: string, correlationID: string) => {
 	const start = performance.now();
-	const response = await fetch(`https://enstate.rs/n/${name}`);
-	const data = await response.json();
-	console.log(`enstate (${correlationID}): ${performance.now() - start}ms`);
-	return (data.avatar || "").toString();
+	try {
+		const response = await fetch(`https://enstate.rs/n/${name}`);
+		const data = await response.json();
+		console.log(`enstate (${correlationID}): ${performance.now() - start}ms`);
+		return (data.avatar || "").toString();
+	}
+	catch (e) {
+		console.log(`error (${correlationID}): ${e}`);
+		return "";
+	}
 };
 
 app.get("/:size/:image.webp", async (req, res) => {
@@ -83,7 +89,7 @@ app.get("/:size/:image.webp", async (req, res) => {
 	}
 
 	let arrayBuffer: ArrayBuffer | undefined;
-	const fileStream = await minioClient
+		const fileStream = await minioClient
 		.getObject(bucket, req.params.size+"/"+encodeURIComponent(fileURL))
 		.catch(async (e) => {
 			if (e.code === "NoSuchKey") {
@@ -95,10 +101,13 @@ app.get("/:size/:image.webp", async (req, res) => {
 
 				arrayBuffer = await response.arrayBuffer();
 
-				if (!arrayBuffer) {
+				console.log(`fetch (${correlationID}): ${response.status}`);
+
+				if (!arrayBuffer || arrayBuffer.byteLength === 0) {
 					res.json({
 						error: "File not found",
 					});
+					return;
 				}
 
 				return await sharp(arrayBuffer, {
@@ -109,7 +118,14 @@ app.get("/:size/:image.webp", async (req, res) => {
 						Number.parseInt(req.params.size),
 					)
 					.webp()
-					.toBuffer();
+					.toBuffer()
+					.catch((e) => {
+						console.log(`sharp error (${correlationID}): ${e}`);
+						res.json({
+							error: "Could not process image, maybe Sharp doesn't support this format?",
+						});
+						return;
+					});
 			}
 		});
 
