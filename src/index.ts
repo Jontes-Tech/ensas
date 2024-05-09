@@ -131,7 +131,6 @@ app.get("/:size/:image.webp", async (req, res) => {
 				});
 		}
 	});
-	// Match for example: /ipfs/bafkreigbpfvv525drwoqixezouulwt5ky6jpgkac62r5w7ihldtypdg2ly
 	const ipfs = /\/ipfs\/(.*)/;
 	if (ipfs.test(new URL(fileURL).pathname)) {
 		console.log(`ipfs (${correlationID}): ${fileURL}`);
