@@ -30,7 +30,7 @@ const resizeAndUpload = (
 
 		await minioClient.putObject(
 			process.env.S3_BUCKET || "ens-avatar",
-			size+"/"+encodeURIComponent(fileURL),
+			size + "/" + encodeURIComponent(fileURL),
 			image,
 			image.length,
 			{
@@ -44,12 +44,11 @@ const resizeAndUpload = (
 const getAvatarURL = async (name: string, correlationID: string) => {
 	const start = performance.now();
 	try {
-		const response = await fetch(`https://enstate.rs/n/${name}`);
+		const response = await fetch(`${process.env.ENSTATE_URL || "https://enstate.rs/"}/n/${name}`);
 		const data = await response.json();
-		console.log(`enstate (${correlationID}): ${performance.now() - start}ms`);
+		console.log(`${process.env.ENSTATE_URL} (${correlationID}): ${performance.now() - start}ms`);
 		return (data.avatar || "").toString();
-	}
-	catch (e) {
+	} catch (e) {
 		console.log(`error (${correlationID}): ${e}`);
 		return "";
 	}
@@ -66,7 +65,7 @@ app.get("/:size/:image.webp", async (req, res) => {
 
 	const bucket = process.env.BUCKET_NAME || "ens-avatar";
 
-	console.log(bucket)
+	console.log(bucket);
 
 	const fileURL = await getAvatarURL(req.params.image, correlationID);
 
@@ -89,50 +88,61 @@ app.get("/:size/:image.webp", async (req, res) => {
 	}
 
 	let arrayBuffer: ArrayBuffer | undefined;
-		const fileStream = await minioClient
-		.getObject(bucket, req.params.size+"/"+encodeURIComponent(fileURL))
-		.catch(async (e) => {
-			if (e.code === "NoSuchKey") {
-				const preFetch = performance.now();
-				const response = await fetch(fileURL);
-				console.log(
-					`image fetch (${correlationID}): ${performance.now() - preFetch}ms`,
-				);
+	const fileStream = await minioClient
+	.getObject(bucket, req.params.size+"/"+encodeURIComponent(fileURL))
+	.catch(async (e) => {
+		if (e.code === "NoSuchKey") {
+			const preFetch = performance.now();
+			const response = await fetch(fileURL, {
+				headers: {
+					"User-Agent": "ENS Avatar Service <jonatan@jontes.page>",
+				}
+			});
+			console.log(
+				`image fetch (${correlationID}): ${performance.now() - preFetch}ms`,
+			);
 
-				arrayBuffer = await response.arrayBuffer();
+			arrayBuffer = await response.arrayBuffer();
 
-				console.log(`fetch (${correlationID}): ${response.status}`);
+			console.log(`fetch (${correlationID}): ${response.status}`);
 
-				if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+			if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+				res.status(500).json({
+					error: "Upstream did not return a valid image",
+				});
+				return;
+			}
+
+			return await sharp(arrayBuffer, {
+				animated: true,
+			})
+				.resize(
+					Number.parseInt(req.params.size),
+					Number.parseInt(req.params.size),
+				)
+				.webp()
+				.toBuffer()
+				.catch((e) => {
+					console.log(`sharp error (${correlationID}): ${e}`);
 					res.json({
-						error: "File not found",
+						error: "Could not process image, maybe Sharp doesn't support this format?",
 					});
 					return;
-				}
-
-				return await sharp(arrayBuffer, {
-					animated: true,
-				})
-					.resize(
-						Number.parseInt(req.params.size),
-						Number.parseInt(req.params.size),
-					)
-					.webp()
-					.toBuffer()
-					.catch((e) => {
-						console.log(`sharp error (${correlationID}): ${e}`);
-						res.json({
-							error: "Could not process image, maybe Sharp doesn't support this format?",
-						});
-						return;
-					});
-			}
-		});
+				});
+		}
+	});
+	// Match for example: /ipfs/bafkreigbpfvv525drwoqixezouulwt5ky6jpgkac62r5w7ihldtypdg2ly
+	const ipfs = /\/ipfs\/(.*)/;
+	if (ipfs.test(new URL(fileURL).pathname)) {
+		console.log(`ipfs (${correlationID}): ${fileURL}`);
+		res.setHeader("x-ipfs-path", fileURL.match(ipfs)[1]);
+	}
 
 	if (!fileStream || typeof fileStream === "undefined") {
 		res.json({
-			error: "File not found",
+			error: "File not found or could not be processed",
 		});
+		return;
 	}
 
 	res.setHeader("Content-Type", "image/webp");
@@ -147,7 +157,8 @@ app.get("/:size/:image.webp", async (req, res) => {
 		fileStream.pipe(res);
 	}
 
-	if (arrayBuffer) {
+	if (arrayBuffer && arrayBuffer.byteLength > 0) {
+		// Please don't try to cache anything which failed to process.
 		resizeAndUpload(arrayBuffer, fileURL, correlationID);
 	}
 	console.log(`served (${correlationID}): ${req.params.image}`);
