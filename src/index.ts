@@ -134,7 +134,7 @@ app.get("/:size/:image.webp", async (req, res) => {
 	const ipfs = /\/ipfs\/(.*)/;
 	if (ipfs.test(new URL(fileURL).pathname)) {
 		console.log(`ipfs (${correlationID}): ${fileURL}`);
-		res.setHeader("x-ipfs-path", fileURL.match(ipfs)[1]);
+		res.setHeader("x-ipfs-path", new URL(fileURL).pathname);
 	}
 
 	if (!fileStream || typeof fileStream === "undefined") {
