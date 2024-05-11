@@ -4,6 +4,7 @@ import sharp from "sharp";
 import { v4 } from "uuid";
 
 const app = express();
+app.set("etag", false);
 
 const minioClient = new Minio.Client({
 	endPoint: process.env.BUCKET_HOST || "localhost",
@@ -62,12 +63,20 @@ app.get("/:size/:image.webp", async (req, res) => {
 			error: "Invalid size",
 		});
 	}
+	
 
 	const bucket = process.env.BUCKET_NAME || "ens-avatar";
 
 	console.log(bucket);
 
-	const fileURL = await getAvatarURL(req.params.image, correlationID);
+	let fileURL = await getAvatarURL(req.params.image, correlationID);
+
+	const ipfs = /\/ipfs\/(.*)/;
+	if (ipfs.test(new URL(fileURL).pathname)) {
+		console.log(`ipfs (${correlationID}): ${fileURL}`);
+		res.setHeader("x-ipfs-path", new URL(fileURL).pathname);
+		fileURL = `https://cloudflare-ipfs.com${new URL(fileURL).pathname}`;
+	}
 
 	console.log(`fileURL: ${fileURL}`);
 
@@ -131,11 +140,6 @@ app.get("/:size/:image.webp", async (req, res) => {
 				});
 		}
 	});
-	const ipfs = /\/ipfs\/(.*)/;
-	if (ipfs.test(new URL(fileURL).pathname)) {
-		console.log(`ipfs (${correlationID}): ${fileURL}`);
-		res.setHeader("x-ipfs-path", new URL(fileURL).pathname);
-	}
 
 	if (!fileStream || typeof fileStream === "undefined") {
 		res.json({
@@ -157,7 +161,6 @@ app.get("/:size/:image.webp", async (req, res) => {
 	}
 
 	if (arrayBuffer && arrayBuffer.byteLength > 0) {
-		// Please don't try to cache anything which failed to process.
 		resizeAndUpload(arrayBuffer, fileURL, correlationID);
 	}
 	console.log(`served (${correlationID}): ${req.params.image}`);
