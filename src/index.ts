@@ -1,3 +1,4 @@
+import { file } from "bun";
 import express from "express";
 import * as Minio from "minio";
 import sharp from "sharp";
@@ -19,7 +20,7 @@ const sizes = [64, 128, 256];
 const resizeAndUpload = (
 	imageBuffer: ArrayBuffer,
 	fileURL: string,
-	correlationID: string,
+	correlationID: string
 ) => {
 	sizes.forEach(async (size) => {
 		const image = await sharp(imageBuffer, {
@@ -39,6 +40,23 @@ const resizeAndUpload = (
 			},
 		);
 	});
+
+	(async () => {
+		const image = await sharp(imageBuffer)
+			.resize(64, 64)
+			.jpeg()
+			.toBuffer();
+		await minioClient.putObject(
+			process.env.S3_BUCKET || "ens-avatar",
+			"64_legacy/" + encodeURIComponent(fileURL),
+			image,
+			image.length,
+			{
+				"Content-Type": "image/jpeg",
+			},
+		);
+	})();
+
 	console.log(`resized and uploaded (${correlationID}): ${fileURL}`);
 };
 
@@ -55,15 +73,26 @@ const getAvatarURL = async (name: string, correlationID: string) => {
 	}
 };
 
-app.get("/:size/:image.webp", async (req, res) => {
+app.get("/:size/:image.:format", async (req, res) => {
 	const correlationID = v4();
+
+	if (req.params.format !== "webp" && req.params.format !== "jpg") {
+		res.json({
+			error: "Invalid format",
+		});
+	}
+
+	if (req.params.format === "jpg" && req.params.size !== "64") {
+		res.json({
+			error: "Invalid size for jpg",
+		});
+	}
 
 	if (!sizes.includes(Number.parseInt(req.params.size))) {
 		res.json({
 			error: "Invalid size",
 		});
 	}
-	
 
 	const bucket = process.env.BUCKET_NAME || "ens-avatar";
 
@@ -79,6 +108,9 @@ app.get("/:size/:image.webp", async (req, res) => {
 	}
 
 	console.log(`fileURL: ${fileURL}`);
+
+	// Assume cache hit, change to MISS if we fetch the image
+	res.setHeader("X-Cache", "HIT")
 
 	if (!fileURL) {
 		res.setHeader("Content-Type", "image/svg+xml");
@@ -97,72 +129,120 @@ app.get("/:size/:image.webp", async (req, res) => {
 	}
 
 	let arrayBuffer: ArrayBuffer | undefined;
+	let age = 0;
 	const fileStream = await minioClient
-	.getObject(bucket, req.params.size+"/"+encodeURIComponent(fileURL))
-	.catch(async (e) => {
-		if (e.code === "NoSuchKey") {
-			const preFetch = performance.now();
-			const response = await fetch(fileURL, {
-				headers: {
-					"User-Agent": "ENS Avatar Service <jonatan@jontes.page>",
-				}
-			});
-			console.log(
-				`image fetch (${correlationID}): ${performance.now() - preFetch}ms`,
-			);
-
-			arrayBuffer = await response.arrayBuffer();
-
-			console.log(`fetch (${correlationID}): ${response.status}`);
-
-			if (!arrayBuffer || arrayBuffer.byteLength === 0) {
-				res.status(500).json({
-					error: "Upstream did not return a valid image",
+		.getObject(bucket, (req.params.format === "webp" ? req.params.size : req.params.size + "_legacy") + "/" + encodeURIComponent(fileURL))
+		.catch(async (e) => {
+			if (e.code === "NoSuchKey") {
+				res.setHeader("X-Cache", "MISS");
+				const preFetch = performance.now();
+				const response = await fetch(fileURL, {
+					headers: {
+						"User-Agent": "ENS Avatar Service <jonatan@jontes.page>",
+					}
 				});
-				return;
-			}
+				console.log(
+					`image fetch (${correlationID}): ${performance.now() - preFetch}ms`,
+				);
 
-			return await sharp(arrayBuffer, {
-				animated: true,
-			})
-				.resize(
-					Number.parseInt(req.params.size),
-					Number.parseInt(req.params.size),
-				)
-				.webp()
-				.toBuffer()
-				.catch((e) => {
-					console.log(`sharp error (${correlationID}): ${e}`);
-					res.json({
-						error: "Could not process image, maybe Sharp doesn't support this format?",
+				arrayBuffer = await response.arrayBuffer();
+
+				console.log(`fetch (${correlationID}): ${response.status}`);
+
+				if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+					res.status(500).json({
+						error: "Upstream did not return a valid image",
 					});
 					return;
+				}
+
+				if (req.params.format === "jpg") {
+					return await sharp(arrayBuffer)
+						.resize(
+							Number.parseInt(req.params.size),
+							Number.parseInt(req.params.size),
+						)
+						.jpeg()
+						.toBuffer()
+						.catch((e) => {
+							console.log(`sharp error (${correlationID}): ${e}`);
+							res.json({
+								error: "Could not process image, maybe Sharp doesn't support this format?",
+							});
+							return;
+						});
+				}
+
+				return await sharp(arrayBuffer, {
+					animated: true,
+				})
+					.resize(
+						Number.parseInt(req.params.size),
+						Number.parseInt(req.params.size),
+					)
+					.webp()
+					.toBuffer()
+					.catch((e) => {
+						console.log(`sharp error (${correlationID}): ${e}`);
+						res.json({
+							error: "Could not process image, maybe Sharp doesn't support this format?",
+						});
+						return;
+					});
+			}
+		}).then((stream) => {
+			if (Buffer.isBuffer(stream)) {
+				return stream;
+			}
+			if (stream) {
+				return new Promise((resolve, reject) => {
+					const chunks: any[] = [];
+					stream.on("data", (chunk) => {
+						chunks.push(chunk);
+					});
+					stream.on("end", () => {
+						// @ts-ignore
+						age = new Date() - new Date(stream.headers["last-modified"]);
+						resolve(Buffer.concat(chunks));
+					});
+					stream.on("error", reject);
 				});
-		}
-	});
+			}
+			return undefined;
+		})
 
-	if (!fileStream || typeof fileStream === "undefined") {
-		res.json({
-			error: "File not found or could not be processed",
-		});
-		return;
+	if (req.params.format === "jpg") {
+		res.setHeader("Content-Type", "image/jpeg");
 	}
-
-	res.setHeader("Content-Type", "image/webp");
+	else {
+		res.setHeader("Content-Type", "image/webp");
+	}
+	
 	res.setHeader("Cache-Control", "public, max-age=604800");
-	if (Buffer.isBuffer(fileStream)) {
-		res.setHeader("X-Cache", "MISS");
-		console.log(`cache miss (${correlationID}): ${req.params.image}`);
-		res.send(fileStream);
-	} else if (fileStream) {
-		res.setHeader("X-Cache", "HIT");
-		console.log(`cache hit (${correlationID}): ${req.params.image}`);
-		fileStream.pipe(res);
-	}
+	res.setHeader("Age", (age / 1000).toFixed().toString());
+
+	res.send(fileStream);
 
 	if (arrayBuffer && arrayBuffer.byteLength > 0) {
 		resizeAndUpload(arrayBuffer, fileURL, correlationID);
 	}
+
+	if (age > 1000 * 60 * 60 * 24 * 5) {
+		const response = await fetch(fileURL, {
+			headers: {
+				"User-Agent": "ENS Avatar Service <jonatan@jontes.page>",
+			}
+		});
+
+		const arrayBuffer = await response.arrayBuffer();
+
+		if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+			return;
+		}
+
+		resizeAndUpload(arrayBuffer, fileURL, correlationID);
+	}
+
 	console.log(`served (${correlationID}): ${req.params.image}`);
 });
 
