@@ -100,15 +100,6 @@ app.get("/:size/:image.:format", async (req, res) => {
 
 	let fileURL = await getAvatarURL(req.params.image, correlationID);
 
-	const ipfs = /\/ipfs\/(.*)/;
-	if (ipfs.test(new URL(fileURL).pathname)) {
-		console.log(`ipfs (${correlationID}): ${fileURL}`);
-		res.setHeader("x-ipfs-path", new URL(fileURL).pathname);
-		fileURL = `https://cloudflare-ipfs.com${new URL(fileURL).pathname}`;
-	}
-
-	console.log(`fileURL: ${fileURL}`);
-
 	// Assume cache hit, change to MISS if we fetch the image
 	res.setHeader("X-Cache", "HIT")
 
@@ -127,6 +118,15 @@ app.get("/:size/:image.:format", async (req, res) => {
     </svg>`);
 		return;
 	}
+
+	const ipfs = /\/ipfs\/(.*)/;
+	if (ipfs.test(new URL(fileURL).pathname)) {
+		console.log(`ipfs (${correlationID}): ${fileURL}`);
+		res.setHeader("x-ipfs-path", new URL(fileURL).pathname);
+		fileURL = `https://cloudflare-ipfs.com${new URL(fileURL).pathname}`;
+	}
+
+	console.log(`fileURL: ${fileURL}`);
 
 	let arrayBuffer: ArrayBuffer | undefined;
 	let age = 0;
