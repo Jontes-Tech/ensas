@@ -246,6 +246,31 @@ app.get("/:size/:image.:format", async (req, res) => {
 	console.log(`served (${correlationID}): ${req.params.image}`);
 });
 
+app.get("/", (req, res) => {
+	res.setHeader("Content-Type", "text/html");
+	res.send(`<!DOCTYPE html>
+	<html lang="en">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>AvatarService</title>
+		<link rel="stylesheet" href="https://cdn.simplecss.org/simple.min.css">
+	</head>
+	<body>
+		<header>
+			<h1>AvatarService.xyz</h1>
+			<p>A public good for accessing ENS profile pictures effiently</p>
+		</header>
+		<p>This service is a public good for those who do not wish to make arbritary web requests to random webservers users have specified. We proxy any ENS names' avatars, and resize them to your liking.</p>
+		<code>https://avatarservice.xyz/RESOLUTION/ETHNAME.webp</code>
+		<p>Where RESOLUTION is either 64, 128 or 256 and ETHNAME is the ENS name you want to search for.</p>
+		<footer>
+			A public good for the community
+		</footer>
+	</body>
+	</html>`)
+})
+
 app.listen(3000, () => {
 	console.log("Server running on port 3000");
 });
