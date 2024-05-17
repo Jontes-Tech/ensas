@@ -60,6 +60,22 @@ const resizeAndUpload = (
 	console.log(`resized and uploaded (${correlationID}): ${fileURL}`);
 };
 
+const userError = (res: express.Response, size: number) => {
+		res.setHeader("Content-Type", "image/svg+xml");
+		res.send(`<?xml version="1.0" standalone="no"?>
+    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" height="${size}px" width="${size}px">
+      <defs>
+        <linearGradient id="0" x1="0.66" y1="0.03" x2="0.34" y2="0.97">
+          <stop offset="1%" stop-color="#5298ff"/>
+          <stop offset="51%" stop-color="#5298ff"/>
+          <stop offset="100%" stop-color="#5298ff"/>
+        </linearGradient>
+      </defs>
+      <rect fill="url(#0)" height="100%" width="100%"/>
+    </svg>`);
+		return;
+}
+
 const getAvatarURL = async (name: string, correlationID: string) => {
 	const start = performance.now();
 	try {
@@ -76,6 +92,7 @@ const getAvatarURL = async (name: string, correlationID: string) => {
 app.get("/:size/:image.:format", async (req, res) => {
 	const correlationID = v4();
 
+	// These errors shouldn't be graceful, as they are developer errors (and not user errors)
 	if (req.params.format !== "webp" && req.params.format !== "jpg") {
 		res.json({
 			error: "Invalid format",
@@ -104,18 +121,7 @@ app.get("/:size/:image.:format", async (req, res) => {
 	res.setHeader("X-Cache", "HIT")
 
 	if (!fileURL) {
-		res.setHeader("Content-Type", "image/svg+xml");
-		res.send(`<?xml version="1.0" standalone="no"?>
-    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" height="${req.params.size}px" width="${req.params.size}px">
-      <defs>
-        <linearGradient id="0" x1="0.66" y1="0.03" x2="0.34" y2="0.97">
-          <stop offset="1%" stop-color="#5298ff"/>
-          <stop offset="51%" stop-color="#5298ff"/>
-          <stop offset="100%" stop-color="#5298ff"/>
-        </linearGradient>
-      </defs>
-      <rect fill="url(#0)" height="100%" width="100%"/>
-    </svg>`);
+		userError(res, Number.parseInt(req.params.size));
 		return;
 	}
 
@@ -135,7 +141,7 @@ app.get("/:size/:image.:format", async (req, res) => {
 		.catch(async (e) => {
 			if (e.code === "NoSuchKey") {
 				res.setHeader("X-Cache", "MISS");
-				const response = await axios("https://run.mocky.io/v3/47e05706-dbbb-4fa7-a3f3-3f4bcb8995d3?mocky-delay=11000ms", {
+				const response = await axios(fileURL, {
 					headers: {
 						"User-Agent": "ENS Avatar Service <jonatan@jontes.page>",
 					},
@@ -144,9 +150,7 @@ app.get("/:size/:image.:format", async (req, res) => {
 					responseType: "arraybuffer",
 				}).catch((e) => {
 					console.log(`axios error (${correlationID}): ${e}`);
-					res.json({
-						error: "Could not fetch image",
-					});
+					userError(res, Number.parseInt(req.params.size));
 					return;
 				})
 
@@ -159,9 +163,7 @@ app.get("/:size/:image.:format", async (req, res) => {
 				console.log(`fetch (${correlationID}): ${response.status}`);
 
 				if (!arrayBuffer || arrayBuffer.byteLength === 0) {
-					res.status(500).json({
-						error: "Upstream did not return a valid image",
-					});
+					userError(res, Number.parseInt(req.params.size));
 					return;
 				}
 
@@ -175,9 +177,7 @@ app.get("/:size/:image.:format", async (req, res) => {
 						.toBuffer()
 						.catch((e) => {
 							console.log(`sharp error (${correlationID}): ${e}`);
-							res.json({
-								error: "Could not process image, maybe Sharp doesn't support this format?",
-							});
+							userError(res, Number.parseInt(req.params.size));
 							return;
 						});
 				}
@@ -284,11 +284,11 @@ app.get("/", (req, res) => {
 		<code>https://avatarservice.xyz/RESOLUTION/ETHNAME.webp</code>
 		<p>Where RESOLUTION is either 64, 128 or 256 and ETHNAME is the ENS name you want to search for.</p>
 		<footer>
-			A public good for the community
+			A public good for the community (<a href="mailto:jonatan@jontes.page">report concerns</a>)
 		</footer>
 	</body>
 	</html>`)
-})
+}) 
 
 app.listen(3000, () => {
 	console.log("Server running on port 3000");
