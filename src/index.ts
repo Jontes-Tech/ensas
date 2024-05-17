@@ -1,4 +1,4 @@
-import { file } from "bun";
+import axios from "axios"
 import express from "express";
 import * as Minio from "minio";
 import sharp from "sharp";
@@ -135,17 +135,26 @@ app.get("/:size/:image.:format", async (req, res) => {
 		.catch(async (e) => {
 			if (e.code === "NoSuchKey") {
 				res.setHeader("X-Cache", "MISS");
-				const preFetch = performance.now();
-				const response = await fetch(fileURL, {
+				const response = await axios("https://run.mocky.io/v3/47e05706-dbbb-4fa7-a3f3-3f4bcb8995d3?mocky-delay=11000ms", {
 					headers: {
 						"User-Agent": "ENS Avatar Service <jonatan@jontes.page>",
-					}
-				});
-				console.log(
-					`image fetch (${correlationID}): ${performance.now() - preFetch}ms`,
-				);
+					},
+					maxContentLength: 50 * 1024 * 1024,
+					timeout: 10000,
+					responseType: "arraybuffer",
+				}).catch((e) => {
+					console.log(`axios error (${correlationID}): ${e}`);
+					res.json({
+						error: "Could not fetch image",
+					});
+					return;
+				})
 
-				arrayBuffer = await response.arrayBuffer();
+				if (!response) {
+					return;
+				}
+
+				arrayBuffer = response.data;
 
 				console.log(`fetch (${correlationID}): ${response.status}`);
 
@@ -228,13 +237,23 @@ app.get("/:size/:image.:format", async (req, res) => {
 	}
 
 	if (age > 1000 * 60 * 60 * 24 * 5) {
-		const response = await fetch(fileURL, {
+		const response = await axios(fileURL, {
 			headers: {
 				"User-Agent": "ENS Avatar Service <jonatan@jontes.page>",
-			}
+			},
+			maxContentLength: 50 * 1024 * 1024,
+			timeout: 60000,
+			responseType: "arraybuffer",
+		}).catch((e) => {
+			console.log(`axios error (${correlationID}): ${e}`);
+			return;
 		});
 
-		const arrayBuffer = await response.arrayBuffer();
+		if (!response) {
+			return;
+		}
+
+		const arrayBuffer = await response.data;
 
 		if (!arrayBuffer || arrayBuffer.byteLength === 0) {
 			return;

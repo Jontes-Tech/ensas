@@ -1,21 +1,22 @@
 {
-	"scripts": {
-		"dev": "bun run --hot src/index.ts",
-		"lint": "bunx @biomejs/biome lint --apply .",
-		"format": "bunx @biomejs/biome format --write ."
-	},
-	"dependencies": {
-		"@types/etag": "^1.8.3",
-		"@types/express": "^4.17.21",
-		"etag": "^1.8.1",
-		"express": "^4.19.2",
-		"minio": "^8.0.0",
-		"sharp": "^0.33.3",
-		"uuid": "^9.0.1"
-	},
-	"devDependencies": {
-		"@biomejs/biome": "1.7.3",
-		"@types/bun": "latest",
-		"typescript": "^5.4.5"
-	}
+  "scripts": {
+    "dev": "bun run --hot src/index.ts",
+    "lint": "bunx @biomejs/biome lint --apply .",
+    "format": "bunx @biomejs/biome format --write ."
+  },
+  "dependencies": {
+    "@types/etag": "^1.8.3",
+    "@types/express": "^4.17.21",
+    "axios": "^1.6.8",
+    "etag": "^1.8.1",
+    "express": "^4.19.2",
+    "minio": "^8.0.0",
+    "sharp": "^0.33.3",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.7.3",
+    "@types/bun": "latest",
+    "typescript": "^5.4.5"
+  }
 }
