@@ -4,6 +4,7 @@ COPY package.json .
 RUN bun install
 
 COPY . .
+RUN chown -R bun:bun .
 
 USER bun
 EXPOSE 3000/tcp
