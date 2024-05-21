@@ -283,6 +283,9 @@ app.get("/", (req, res) => {
 		<p>This service is a public good for those who do not wish to make arbritary web requests to random webservers users have specified. We proxy any ENS names' avatars, and resize them to your liking.</p>
 		<code>https://avatarservice.xyz/RESOLUTION/ETHNAME.webp</code>
 		<p>Where RESOLUTION is either 64, 128 or 256 and ETHNAME is the ENS name you want to search for.</p>
+		<p><a target="_blank" href="https://avatarservice.xyz/64/jontes.eth.webp">https://avatarservice.xyz/64/jontes.eth.webp</a></p>
+		<p><a target="_blank" href="https://avatarservice.xyz/128/luc.eth.webp">https://avatarservice.xyz/128/luc.eth.webp</a></p>
+		<p><a target="_blank" href="https://avatarservice.xyz/256/helgesson.eth.webp">https://avatarservice.xyz/256/helgesson.eth.webp</a></p>
 		<footer>
 			A public good for the community (<a href="mailto:jonatan@jontes.page">report concerns</a>)
 		</footer>
