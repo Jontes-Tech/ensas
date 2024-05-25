@@ -31,7 +31,9 @@ export const handleNotFound = async (
 
         if (format === 'jpg') {
             return {
-                buffer: await sharp(response.data)
+                buffer: await sharp(response.data, {
+                    animated: true,
+                })
                     .resize({
                         width: size,
                         height: size,
@@ -46,7 +48,9 @@ export const handleNotFound = async (
         }
 
         return {
-            buffer: await sharp(response.data)
+            buffer: await sharp(response.data, {
+                animated: true,
+            })
                 .resize({
                     width: size,
                     height: size,

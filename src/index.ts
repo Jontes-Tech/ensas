@@ -12,69 +12,74 @@ const app = express();
 app.set('etag', false);
 
 app.get('/:size/:image.:format', async (request, response) => {
-    response.setHeader('X-Cache', 'HIT');
+    try {
+        response.setHeader('X-Cache', 'HIT');
 
-    const sanityCheckError = performSanityCheck(
-        request.params.size,
-        request.params.format,
-    );
+        const sanityCheckError = performSanityCheck(
+            request.params.size,
+            request.params.format,
+        );
 
-    if (sanityCheckError) {
-        response.json({
-            error: sanityCheckError,
+        if (sanityCheckError) {
+            response.json({
+                error: sanityCheckError,
+            });
+
+            return;
+        }
+
+        let fileURL = await getAvatarURL(request.params.image);
+
+        if (!fileURL) {
+            userError(response, Number.parseInt(request.params.size));
+
+            return;
+        }
+
+        const ipfs = /\/ipfs\/(.*)/;
+
+        if (ipfs.test(new URL(fileURL).pathname)) {
+            response.setHeader('x-ipfs-path', new URL(fileURL).pathname);
+            fileURL = `https://cloudflare-ipfs.com${new URL(fileURL).pathname}`;
+        }
+
+        const image = await getImage(
+            fileURL,
+            Number.parseInt(request.params.size),
+            request.params.format as 'webp' | 'jpg',
+        ).catch(() => {
+            userError(response, Number.parseInt(request.params.size));
         });
 
-        return;
-    }
+        if (!image || !image.buffer) {
+            userError(response, Number.parseInt(request.params.size));
 
-    let fileURL = await getAvatarURL(request.params.image);
+            return;
+        }
 
-    if (!fileURL) {
+        if (image.originalBuffer) {
+            // Because we have an original buffer, we know that the image was in fact fetched in this request
+            response.setHeader('X-Cache', 'MISS');
+        }
+
+        const { buffer, age, originalBuffer } = image;
+
+        if (request.params.format === 'jpg') {
+            response.setHeader('Content-Type', 'image/jpeg');
+        } else {
+            response.setHeader('Content-Type', 'image/webp');
+        }
+
+        response.setHeader('Cache-Control', 'public, max-age=604800');
+        response.setHeader('Age', (age / 1000).toFixed(0).toString());
+
+        response.send(buffer);
+
+        populateCache(originalBuffer, fileURL, age);
+    } catch (error) {
+        console.error(error);
         userError(response, Number.parseInt(request.params.size));
-
-        return;
     }
-
-    const ipfs = /\/ipfs\/(.*)/;
-
-    if (ipfs.test(new URL(fileURL).pathname)) {
-        response.setHeader('x-ipfs-path', new URL(fileURL).pathname);
-        fileURL = `https://cloudflare-ipfs.com${new URL(fileURL).pathname}`;
-    }
-
-    const image = await getImage(
-        fileURL,
-        Number.parseInt(request.params.size),
-        request.params.format as 'webp' | 'jpg',
-    ).catch(() => {
-        userError(response, Number.parseInt(request.params.size));
-    });
-
-    if (!image || !image.buffer) {
-        userError(response, Number.parseInt(request.params.size));
-
-        return;
-    }
-
-    if (image.originalBuffer) {
-        // Because we have an original buffer, we know that the image was in fact fetched in this request
-        response.setHeader('X-Cache', 'MISS');
-    }
-
-    const { buffer, age, originalBuffer } = image;
-
-    if (request.params.format === 'jpg') {
-        response.setHeader('Content-Type', 'image/jpeg');
-    } else {
-        response.setHeader('Content-Type', 'image/webp');
-    }
-
-    response.setHeader('Cache-Control', 'public, max-age=604800');
-    response.setHeader('Age', (age / 1000).toFixed(0).toString());
-
-    response.send(buffer);
-
-    populateCache(originalBuffer, fileURL, age);
 });
 
 app.get('/', (request, response) => {
