@@ -11,6 +11,14 @@ const app = express();
 
 app.set('etag', false);
 
+app.use((request, _response, next) => {
+    const { url } = request;
+
+    console.log(`${new Date().toISOString()} GET ${url}`);
+
+    next();
+});
+
 app.get('/:size/:image.:format', async (request, response) => {
     try {
         response.setHeader('X-Cache', 'HIT');
@@ -31,16 +39,15 @@ app.get('/:size/:image.:format', async (request, response) => {
         let fileURL = await getAvatarURL(request.params.image);
 
         if (!fileURL) {
-            userError(response, Number.parseInt(request.params.size));
-
-            return;
+            throw new Error('Failed to fetch avatar URL');
         }
 
         const ipfs = /\/ipfs\/(.*)/;
 
         if (ipfs.test(new URL(fileURL).pathname)) {
             response.setHeader('x-ipfs-path', new URL(fileURL).pathname);
-            fileURL = `https://cloudflare-ipfs.com${new URL(fileURL).pathname}`;
+            fileURL =
+                process.env.IPFS_GATEWAY || '' + new URL(fileURL).pathname;
         }
 
         const image = await getImage(
@@ -48,13 +55,11 @@ app.get('/:size/:image.:format', async (request, response) => {
             Number.parseInt(request.params.size),
             request.params.format as 'webp' | 'jpg',
         ).catch(() => {
-            userError(response, Number.parseInt(request.params.size));
+            throw new Error('Failed to fetch image');
         });
 
         if (!image || !image.buffer) {
-            userError(response, Number.parseInt(request.params.size));
-
-            return;
+            throw new Error('Image buffer is missing');
         }
 
         if (image.originalBuffer) {
