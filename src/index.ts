@@ -47,7 +47,8 @@ app.get('/:size/:image.:format', async (request, response) => {
         if (ipfs.test(new URL(fileURL).pathname)) {
             response.setHeader('x-ipfs-path', new URL(fileURL).pathname);
             fileURL =
-                process.env.IPFS_GATEWAY || '' + new URL(fileURL).pathname;
+                (process.env.IPFS_GATEWAY || 'https://ipfs.io/') +
+                new URL(fileURL).pathname;
         }
 
         const image = await getImage(
