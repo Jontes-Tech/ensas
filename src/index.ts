@@ -47,7 +47,7 @@ app.get('/:size/:image.:format', async (request, response) => {
         if (ipfs.test(new URL(fileURL).pathname)) {
             response.setHeader('x-ipfs-path', new URL(fileURL).pathname);
             fileURL =
-                (process.env.IPFS_GATEWAY || 'https://ipfs.io/') +
+                (process.env.IPFS_GATEWAY || 'https://ipfs.io') +
                 new URL(fileURL).pathname;
         }
 
@@ -55,9 +55,7 @@ app.get('/:size/:image.:format', async (request, response) => {
             fileURL,
             Number.parseInt(request.params.size),
             request.params.format as 'webp' | 'jpg',
-        ).catch(() => {
-            throw new Error('Failed to fetch image');
-        });
+        );
 
         if (!image || !image.buffer) {
             throw new Error('Image buffer is missing');

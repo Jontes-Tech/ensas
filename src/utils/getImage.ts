@@ -23,6 +23,9 @@ export const handleNotFound = async (
             timeout: 10_000,
             maxBodyLength: 16 * 1024 * 1024,
             responseType: 'arraybuffer',
+            maxRedirects: 5,
+        }).catch((error) => {
+            throw new Error('Axios Errror: ' + error.cause);
         });
 
         if (!response || !response.data || response.data.byteLength === 0) {
@@ -121,13 +124,21 @@ export const getImage = async (
         )
         .catch(async (error) => {
             if (error.code === 'NoSuchKey') {
-                const response = await handleNotFound(imageURL, size, format);
+                const response = await handleNotFound(
+                    imageURL,
+                    size,
+                    format,
+                ).catch((error_) => {
+                    console.error('Error in handleNotFound: ' + error_);
+                });
 
                 if (response) {
                     ({ originalBuffer } = response);
 
                     return response.buffer;
                 }
+
+                return;
             }
 
             console.error(error);
