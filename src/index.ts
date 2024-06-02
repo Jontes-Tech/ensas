@@ -46,6 +46,15 @@ app.get('/:size/:image.:format', async (request, response) => {
 
         if (ipfs.test(new URL(fileURL).pathname)) {
             response.setHeader('x-ipfs-path', new URL(fileURL).pathname);
+
+            let gateway = process.env.IPFS_GATEWAY || 'https://ipfs.io';
+
+            if (gateway.includes(',')) {
+                const gateways = gateway.split(',');
+
+                gateway = gateways[Math.floor(Math.random() * gateways.length)];
+            }
+
             fileURL =
                 (process.env.IPFS_GATEWAY || 'https://ipfs.io') +
                 new URL(fileURL).pathname;
