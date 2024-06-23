@@ -127,7 +127,8 @@ app.get('/:size/:image.:format', async (request, response) => {
     } catch (error) {
         logger.error(
             {
-                error,
+                // @ts-ignore
+                error: error.message,
                 ip: request.headers['CF-Connecting-IP'],
                 url: request.url,
             },
