@@ -12,20 +12,20 @@ services:
       MINIO_ROOT_PASSWORD: NadByxrhtkBTn6eDzYfus3jJoNHz4EY7mKjqMMaABrSRTpRsxSQpMNd8y6sJiiZ7QtunGyaqQrrhFSgf2RANav
       MINIO_DEFAULT_BUCKETS: ens-avatar
     command: server /data
-  avatarservice:
-    image: ghcr.io/jontes-tech/ensas:latest
-    restart: always
-    networks:
-      - default
-    ports:
-      - 3000:3000
-    environment:
-      BUCKET_HOST: minio
-      BUCKET_NAME: ens-avatar
-      BUCKET_PORT: 9000
-      IPFS_GATEWAY: "http://localhost:8080"
-      AWS_ACCESS_KEY_ID: yiq15OgZrhK7e0yujRsv
-      AWS_SECRET_ACCESS_KEY: Y6sOovb97BvmugVrfMwpe3MDfd0OggOv9WLhyAOO
+  # avatarservice:
+  #   image: ghcr.io/jontes-tech/ensas:latest
+  #   restart: always
+  #   networks:
+  #     - default
+  #   ports:
+  #     - 3000:3000
+  #   environment:
+  #     BUCKET_HOST: minio
+  #     BUCKET_NAME: ens-avatar
+  #     BUCKET_PORT: 9000
+  #     IPFS_GATEWAY: "http://localhost:8080"
+  #     AWS_ACCESS_KEY_ID: yiq15OgZrhK7e0yujRsv
+  #     AWS_SECRET_ACCESS_KEY: Y6sOovb97BvmugVrfMwpe3MDfd0OggOv9WLhyAOO
 
 volumes:
   minio_data:

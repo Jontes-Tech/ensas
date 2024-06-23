@@ -1,5 +1,6 @@
 /* eslint-disable sonarjs/no-duplicate-string */
 import express from 'express';
+import pino from 'pino';
 
 import { getAvatarURL } from './utils/getAvatarURL';
 import { getImage } from './utils/getImage';
@@ -7,17 +8,20 @@ import { userError } from './utils/handleUserError';
 import { performSanityCheck } from './utils/performSanityCheck';
 import { populateCache } from './utils/populateCache';
 
+const logger = pino(
+    { level: 'info' },
+    pino.transport({
+        target: '@axiomhq/pino',
+        options: {
+            dataset: 'avatarservice',
+            token: process.env.AXIOM_TOKEN,
+        },
+    }),
+);
+
 const app = express();
 
 app.set('etag', false);
-
-app.use((request, _response, next) => {
-    const { url } = request;
-
-    console.log(`${new Date().toISOString()} GET ${url}`);
-
-    next();
-});
 
 app.get('/:size/:image.:format', async (request, response) => {
     try {
@@ -33,13 +37,23 @@ app.get('/:size/:image.:format', async (request, response) => {
                 error: sanityCheckError,
             });
 
+            logger.error(
+                {
+                    error: sanityCheckError,
+                },
+                'Sanity check failed',
+            );
+
             return;
         }
 
         let fileURL = await getAvatarURL(request.params.image);
 
         if (!fileURL) {
-            throw new Error('Failed to fetch avatar URL');
+            throw new Error(
+                'Failed to fetch avatar URL from ENState with name: ' +
+                    request.params.image,
+            );
         }
 
         const ipfs = /\/ipfs\/(.*)/;
@@ -70,12 +84,33 @@ app.get('/:size/:image.:format', async (request, response) => {
             throw new Error('Image buffer is missing');
         }
 
-        if (image.originalBuffer) {
+        const { buffer, age, originalBuffer } = image;
+        const ip = request.headers['CF-Connecting-IP'];
+
+        if (originalBuffer) {
             // Because we have an original buffer, we know that the image was in fact fetched in this request
             response.setHeader('X-Cache', 'MISS');
+            logger.info(
+                {
+                    size: request.params.size,
+                    format: request.params.format,
+                    name: request.params.image,
+                    ip,
+                },
+                'Image not found in cache',
+            );
+        } else {
+            logger.info(
+                {
+                    size: request.params.size,
+                    format: request.params.format,
+                    name: request.params.image,
+                    age: (age / 1000).toFixed(0).toString(),
+                    ip,
+                },
+                'Image was found in cache',
+            );
         }
-
-        const { buffer, age, originalBuffer } = image;
 
         if (request.params.format === 'jpg') {
             response.setHeader('Content-Type', 'image/jpeg');
@@ -90,7 +125,14 @@ app.get('/:size/:image.:format', async (request, response) => {
 
         populateCache(originalBuffer, fileURL, age);
     } catch (error) {
-        console.error(error);
+        logger.error(
+            {
+                error,
+                ip: request.headers['CF-Connecting-IP'],
+                url: request.url,
+            },
+            'Error in request',
+        );
         userError(response, Number.parseInt(request.params.size));
     }
 });
@@ -125,4 +167,4 @@ app.get('/', (request, response) => {
 
 app.listen(3000, () => {
     console.log('Server running on port 3000');
-}).setTimeout(30_000);
+});
