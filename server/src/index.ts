@@ -25,6 +25,8 @@ app.set('etag', false);
 
 app.get('/:size/:image.:format', async (request, response) => {
     try {
+        const format = request.params.format.replace('jpeg', 'jpg');
+
         response.setHeader('X-Cache', 'HIT');
 
         const sanityCheckError = performSanityCheck(
