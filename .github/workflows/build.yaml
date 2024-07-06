@@ -26,6 +26,6 @@ jobs:
        uses: docker/build-push-action@v2
        with:
          context: ./server/
-         file: ./Dockerfile
+         file: ./server/Dockerfile
          push: true
          tags: ghcr.io/jontes-tech/ensas:latest
