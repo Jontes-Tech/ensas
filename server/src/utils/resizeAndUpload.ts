@@ -1,46 +1,25 @@
-import sharp from 'sharp';
+import mq from 'amqplib/callback_api';
 
-import { bucket, sizes } from '../constants';
-import { minioClient } from '../misc/minio';
+let channel: mq.Channel | null = null;
 
-// JSDOC
+const connectRabbitMQ = () => {
+  mq.connect(process.env.AMQP || "amqp://localhost", (err, conn) => {
+    if (err) throw err;
+    conn.createChannel((err, ch) => {
+      if (err) throw err;
+      ch.assertQueue('ensas_queue');
+      channel = ch;
+    });
+  });
+}
 
-/**
- * Resize and upload an image to S3
- * @param imageBuffer - The image buffer to resize and upload
- * @param fileURL - The URL of the file to upload (used as the key)
- */
-export const resizeAndUpload = (imageBuffer: ArrayBuffer, fileURL: string) => {
-    (async () => {
-        for (const size of sizes) {
-            const image = await sharp(imageBuffer, {
-                animated: true,
-            })
-                .resize(size, size)
-                .webp()
-                .toBuffer();
+export const getChannel = () => {
+  if (!channel) {
+    connectRabbitMQ();
+  }
+  return channel;
+}
 
-            await minioClient.putObject(
-                bucket,
-                size + '/' + encodeURIComponent(fileURL),
-                image,
-                image.length,
-                {
-                    'Content-Type': 'image/webp',
-                },
-            );
-        }
-
-        const image = await sharp(imageBuffer).resize(64, 64).jpeg().toBuffer();
-
-        await minioClient.putObject(
-            process.env.S3_BUCKET || 'ens-avatar',
-            '64_legacy/' + encodeURIComponent(fileURL),
-            image,
-            image.length,
-            {
-                'Content-Type': 'image/jpeg',
-            },
-        );
-    })();
-};
+export const resizeAndUpload = async (file: string) => {
+    getChannel()?.sendToQueue('ensas_queue', Buffer.from(file));
+}

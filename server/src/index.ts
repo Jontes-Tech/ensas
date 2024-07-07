@@ -25,7 +25,12 @@ app.set('etag', false);
 
 app.get('/:size/:image.:format', async (request, response) => {
     try {
-        const format = request.params.format.replace('jpeg', 'jpg');
+        if (request.params.format === "jpeg") {
+            response.redirect(
+                301,
+                `/${request.params.size}/${request.params.image}.jpg`,
+            );
+        }
 
         response.setHeader('X-Cache', 'HIT');
 
@@ -86,33 +91,20 @@ app.get('/:size/:image.:format', async (request, response) => {
             throw new Error('Image buffer is missing');
         }
 
-        const { buffer, age, originalBuffer } = image;
+        const { buffer, age, status } = image;
         const ip = request.headers['CF-Connecting-IP'];
 
-        if (originalBuffer) {
-            // Because we have an original buffer, we know that the image was in fact fetched in this request
-            response.setHeader('X-Cache', 'MISS');
-            logger.info(
-                {
-                    size: request.params.size,
-                    format: request.params.format,
-                    name: request.params.image,
-                    ip,
-                },
-                'Image not found in cache',
-            );
-        } else {
-            logger.info(
-                {
-                    size: request.params.size,
-                    format: request.params.format,
-                    name: request.params.image,
-                    age: (age / 1000).toFixed(0).toString(),
-                    ip,
-                },
-                'Image was found in cache',
-            );
-        }
+        logger.info(
+            {
+                size: request.params.size,
+                format: request.params.format,
+                name: request.params.image,
+                ip,
+            },
+            `Image was${status === "MISS" ? " not " : " "}found in cache`
+        );
+
+        response.setHeader('X-Cache', status);
 
         if (request.params.format === 'jpg') {
             response.setHeader('Content-Type', 'image/jpeg');
@@ -125,7 +117,10 @@ app.get('/:size/:image.:format', async (request, response) => {
 
         response.send(buffer);
 
-        populateCache(originalBuffer, fileURL, age);
+        populateCache(
+            fileURL,
+            age
+        );
     } catch (error) {
         logger.error(
             {

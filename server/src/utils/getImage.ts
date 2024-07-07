@@ -32,24 +32,6 @@ export const handleNotFound = async (
             return;
         }
 
-        if (format === 'jpg') {
-            return {
-                buffer: await sharp(response.data, {
-                    animated: true,
-                })
-                    .resize({
-                        width: size,
-                        height: size,
-                        fit: 'cover',
-                        position: 'center',
-                    })
-                    .jpeg()
-                    .toBuffer()
-                    .catch(() => {}),
-                originalBuffer: response.data,
-            };
-        }
-
         return {
             buffer: await sharp(response.data, {
                 animated: true,
@@ -60,15 +42,13 @@ export const handleNotFound = async (
                     fit: 'cover',
                     position: 'center',
                 })
-                .webp()
+                .toFormat(format)
                 .toBuffer()
                 .catch(() => {}),
-            originalBuffer: response.data,
         };
     } catch {
         return {
             buffer: undefined,
-            originalBuffer: undefined,
         };
     }
 };
@@ -76,7 +56,7 @@ export const handleNotFound = async (
 type ReturnType = {
     age: number;
     buffer?: Buffer;
-    originalBuffer?: ArrayBuffer;
+    status: "MISS" | "HIT";
 };
 
 const thePromise = (stream: any) =>
@@ -94,6 +74,7 @@ const thePromise = (stream: any) =>
             return resolve({
                 buffer: Buffer.concat(chunks),
                 age,
+                status: "HIT"
             });
         });
     });
@@ -113,8 +94,6 @@ export const getImage = async (
     size: number,
     format: 'webp' | 'jpg',
 ): Promise<ReturnType> => {
-    let originalBuffer: ArrayBuffer | undefined;
-
     const stream = await minioClient
         .getObject(
             process.env.BUCKET_NAME || '',
@@ -133,8 +112,6 @@ export const getImage = async (
                 });
 
                 if (response) {
-                    ({ originalBuffer } = response);
-
                     return response.buffer;
                 }
 
@@ -148,7 +125,7 @@ export const getImage = async (
         return {
             age: 0,
             buffer: stream,
-            originalBuffer,
+            status: "MISS"
         };
     }
 

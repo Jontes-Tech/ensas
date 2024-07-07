@@ -3,15 +3,9 @@ import axios from 'axios';
 import { resizeAndUpload } from './resizeAndUpload';
 
 export const populateCache = async (
-    originalBuffer: ArrayBuffer | undefined,
     fileURL: string,
     age: number,
 ) => {
-    // If file is not in cache, upload it
-    if (originalBuffer && originalBuffer.byteLength > 0) {
-        resizeAndUpload(originalBuffer, fileURL);
-    }
-
     // If the file is older than 5 days, fetch it again
     if (age > 1000 * 60 * 60 * 24 * 5) {
         const populateCacheResponse = await axios(fileURL, {
@@ -35,6 +29,6 @@ export const populateCache = async (
             return;
         }
 
-        resizeAndUpload(arrayBuffer, fileURL);
+        resizeAndUpload(fileURL);
     }
 };
