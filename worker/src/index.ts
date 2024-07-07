@@ -62,6 +62,9 @@ const handleFile = async (file: string) => {
     });
 };
 
+await new Promise((resolve) => setTimeout(resolve, 10_000));
+console.log(process.env.AMQP)
+
 mq.connect(process.env.AMQP || "amqp://localhost", (err, conn) => {
     if (err) throw err;
     conn.createChannel((err, ch) => {
