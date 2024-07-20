@@ -79,7 +79,11 @@ app.get('/:size/:image.:format', async (request, response) => {
             }
 
             fileURL =
-                (process.env.IPFS_GATEWAY || 'https://ipfs.io') + '/' + cid;
+                (process.env.IPFS_GATEWAY || 'https://ipfs.io') +
+                '/ipfs/' +
+                cid;
+
+            console.log(fileURL);
         }
 
         const image = await getImage(
