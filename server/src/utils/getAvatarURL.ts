@@ -10,7 +10,7 @@ type enstateResponse = {
 export const getAvatarURL = async (name: string) => {
     try {
         const response = await fetch(
-            `${process.env.ENSTATE_URL || 'https://enstate.rs/'}/n/${name}`,
+            `${process.env.ENSTATE_URL || 'https://enstate.rs/n/'}${name}`,
         );
 
         if (response.status !== 200) {
