@@ -10,13 +10,13 @@ import { populateCache } from './utils/populateCache';
 
 const logger = pino(
     { level: 'info' },
-    pino.transport({
-        target: '@axiomhq/pino',
-        options: {
-            dataset: 'avatarservice',
-            token: process.env.AXIOM_TOKEN,
-        },
-    }),
+    // pino.transport({
+    //     target: '@axiomhq/pino',
+    //     options: {
+    //         dataset: 'avatarservice',
+    //         token: process.env.AXIOM_TOKEN,
+    //     },
+    // }),
 );
 
 const app = express();
@@ -25,6 +25,8 @@ app.set('etag', false);
 
 app.get('/:size/:image.:format', async (request, response) => {
     try {
+        console.log(request.params.image);
+
         if (request.params.format === 'jpeg') {
             response.redirect(
                 301,
@@ -63,10 +65,8 @@ app.get('/:size/:image.:format', async (request, response) => {
             );
         }
 
-        const url = new URL(fileURL);
-
-        if (url.protocol === 'ipfs:') {
-            const cid = url.pathname.slice(2);
+        if (fileURL.startsWith('ipfs://')) {
+            const cid = fileURL.slice(7);
 
             response.setHeader('x-ipfs-path', cid);
 
