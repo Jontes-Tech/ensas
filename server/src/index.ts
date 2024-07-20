@@ -65,10 +65,10 @@ app.get('/:size/:image.:format', async (request, response) => {
             );
         }
 
-        if (fileURL.startsWith('ipfs://')) {
-            const cid = fileURL.slice(7);
+        const ipfs = /\/ipfs\/(.*)/;
 
-            response.setHeader('x-ipfs-path', cid);
+        if (ipfs.test(new URL(fileURL).pathname)) {
+            response.setHeader('x-ipfs-path', new URL(fileURL).pathname);
 
             let gateway = process.env.IPFS_GATEWAY || 'https://ipfs.io';
 
@@ -80,10 +80,7 @@ app.get('/:size/:image.:format', async (request, response) => {
 
             fileURL =
                 (process.env.IPFS_GATEWAY || 'https://ipfs.io') +
-                '/ipfs/' +
-                cid;
-
-            console.log(fileURL);
+                new URL(fileURL).pathname;
         }
 
         const image = await getImage(
