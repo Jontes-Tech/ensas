@@ -25,7 +25,7 @@ app.set('etag', false);
 
 app.get('/:size/:image.:format', async (request, response) => {
     try {
-        if (request.params.format === "jpeg") {
+        if (request.params.format === 'jpeg') {
             response.redirect(
                 301,
                 `/${request.params.size}/${request.params.image}.jpg`,
@@ -63,10 +63,12 @@ app.get('/:size/:image.:format', async (request, response) => {
             );
         }
 
-        const ipfs = /\/ipfs\/(.*)/;
+        const url = new URL(fileURL);
 
-        if (ipfs.test(new URL(fileURL).pathname)) {
-            response.setHeader('x-ipfs-path', new URL(fileURL).pathname);
+        if (url.protocol === 'ipfs:') {
+            const cid = url.pathname.slice(2);
+
+            response.setHeader('x-ipfs-path', cid);
 
             let gateway = process.env.IPFS_GATEWAY || 'https://ipfs.io';
 
@@ -77,8 +79,7 @@ app.get('/:size/:image.:format', async (request, response) => {
             }
 
             fileURL =
-                (process.env.IPFS_GATEWAY || 'https://ipfs.io') +
-                new URL(fileURL).pathname;
+                (process.env.IPFS_GATEWAY || 'https://ipfs.io') + '/' + cid;
         }
 
         const image = await getImage(
@@ -101,7 +102,7 @@ app.get('/:size/:image.:format', async (request, response) => {
                 name: request.params.image,
                 ip,
             },
-            `Image was${status === "MISS" ? " not " : " "}found in cache`
+            `Image was${status === 'MISS' ? ' not ' : ' '}found in cache`,
         );
 
         response.setHeader('X-Cache', status);
@@ -117,10 +118,7 @@ app.get('/:size/:image.:format', async (request, response) => {
 
         response.send(buffer);
 
-        populateCache(
-            fileURL,
-            age
-        );
+        populateCache(fileURL, age);
     } catch (error) {
         logger.error(
             {
