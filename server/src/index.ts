@@ -7,16 +7,17 @@ import { getImage } from './utils/getImage';
 import { userError } from './utils/handleUserError';
 import { performSanityCheck } from './utils/performSanityCheck';
 import { populateCache } from './utils/populateCache';
+import { resizeAndUpload } from './utils/resizeAndUpload';
 
 const logger = pino(
     { level: 'info' },
-    // pino.transport({
-    //     target: '@axiomhq/pino',
-    //     options: {
-    //         dataset: 'avatarservice',
-    //         token: process.env.AXIOM_TOKEN,
-    //     },
-    // }),
+    pino.transport({
+        target: '@axiomhq/pino',
+        options: {
+            dataset: 'avatarservice',
+            token: process.env.AXIOM_TOKEN,
+        },
+    }),
 );
 
 const app = express();
@@ -56,7 +57,7 @@ app.get('/:size/:image.:format', async (request, response) => {
             return;
         }
 
-        let fileURL = await getAvatarURL(request.params.image);
+        let fileURL = await getAvatarURL(request.params.image.toLowerCase());
 
         if (!fileURL) {
             throw new Error(
@@ -162,6 +163,53 @@ app.get('/', (request, response) => {
 	</html>`);
 });
 
-app.listen(3000, () => {
+app.post('/bulk', async (request, response) => {
+    const { names } = request.body as { names: string[] };
+
+    if (!names || !Array.isArray(names) || names.length === 0) {
+        response.status(400).send('Invalid request body');
+
+        return;
+    }
+
+    if (names.length > 100) {
+        response
+            .status(400)
+            .send(
+                'While we appreciate your enthusiasm, we can only process 100 names at a time',
+            );
+
+        return;
+    }
+
+    let url = 'https://enstate.rs/bulk/n?ref=avatarservice';
+
+    for (const name of names) {
+        url += `&names[]=${name}`;
+    }
+
+    const enstateResponse = await fetch(url);
+    const json = (await enstateResponse.json()) as {
+        response_length: number;
+        response: {
+            type?: string;
+            avatar?: string;
+        }[];
+    };
+
+    for (const name of json.response) {
+        if (name.avatar) {
+            await resizeAndUpload(name.avatar);
+        }
+    }
+
+    response.send('Processing bulk request');
+});
+
+const server = app.listen(3000, () => {
     console.log('Server running on port 3000');
+});
+
+process.on('SIGTERM', () => {
+    server.close();
 });
