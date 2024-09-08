@@ -11,13 +11,13 @@ import { resizeAndUpload } from './utils/resizeAndUpload';
 
 const logger = pino(
     { level: 'info' },
-    pino.transport({
-        target: '@axiomhq/pino',
-        options: {
-            dataset: 'avatarservice',
-            token: process.env.AXIOM_TOKEN,
-        },
-    }),
+    // pino.transport({
+    //     target: '@axiomhq/pino',
+    //     options: {
+    //         dataset: 'avatarservice',
+    //         token: process.env.AXIOM_TOKEN,
+    //     },
+    // }),
 );
 
 const app = express();
